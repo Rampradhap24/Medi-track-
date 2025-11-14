@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Medication Inventory</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
+    .sidebar { height: 100vh; background-color: #2c3e50; color: white; }
+    .sidebar a { color: white; padding: 15px 20px; display: block; text-decoration: none; }
+    .sidebar a:hover { background-color: #1abc9c; }
+    .main-content { padding: 30px; }
+    .table th { background-color: #34495e; color: #fff; }
+    .table-striped > tbody > tr:nth-of-type(odd) { background-color: #f8f9fa; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 sidebar d-flex flex-column">
+        <h3 class="text-center py-4">💊 MediDash</h3>
+        <a href="second.html"><i class="bi bi-house-door-fill me-2"></i>Dashboard</a>
+        <a href="inventory.html"><i class="bi bi-plus-square-fill me-2"></i>Add Medication</a>
+        <a href="inventory1.html"><i class="bi bi-list-check me-2"></i>Inventory</a>
+        <a href="reports.html"><i class="bi bi-bar-chart-fill me-2"></i>Reports</a>
+        <div class="mt-auto p-3">
+          <a href="index.html" class="btn btn-outline-light w-100">
+            <i class="bi bi-box-arrow-right me-2"></i>Logout
+          </a>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="col-md-10 main-content">
+        <h2 class="mt-4">Inventory</h2>
+        <div class="table-responsive">
+          <table id="inventoryTable" class="table table-striped table-hover table-bordered align-middle shadow-sm">
+            <thead class="table-dark text-center">
+              <tr>
+                <th>Name</th>
+                <th>Dosage</th>
+                <th>Quantity</th>
+                <th>Batch</th>
+                <th>Expiration</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody class="text-center align-middle"></tbody>
+          </table>
+        </div>
+
+        <!-- Download PDF Button -->
+        <div class="text-end mt-3">
+          <button class="btn btn-outline-primary" onclick="downloadPDF()">
+            <i class="bi bi-download me-1"></i>Download PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit Medication</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm">
+            <input type="hidden" id="edit-id">
+            <div class="mb-2">
+              <label class="form-label">Name</label>
+              <input type="text" id="edit-name" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Dosage</label>
+              <input type="text" id="edit-dosage" class="form-control">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Quantity</label>
+              <input type="number" id="edit-quantity" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Batch</label>
+              <input type="text" id="edit-batch" class="form-control">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Expiration</label>
+              <input type="date" id="edit-expiration" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary mt-2 w-100">Save Changes</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const tableBody = document.querySelector('#inventoryTable tbody');
+    let editModal;
+
+    async function loadInventory() {
+      const res = await fetch('http://localhost:5500/api/medications/inventory');
+      const meds = await res.json();
+      tableBody.innerHTML = '';
+      meds.forEach(med => {
+        const row = `<tr>
+          <td>${med.name}</td>
+          <td>${med.dosage || 'N/A'}</td>
+          <td>${med.quantity}</td>
+          <td>${med.batchNumber || 'N/A'}</td>
+          <td>${med.expirationDate ? new Date(med.expirationDate).toLocaleDateString() : 'N/A'}</td>
+          <td>
+            <button class="btn btn-sm btn-warning" onclick="openEditModal('${med._id}', '${med.name}', '${med.dosage || ''}', '${med.quantity}', '${med.batchNumber || ''}', '${med.expirationDate || ''}')">
+              <i class="bi bi-pencil-square"></i> Edit
+            </button>
+          </td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    function openEditModal(id, name, dosage, quantity, batch, expiration) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('edit-name').value = name;
+      document.getElementById('edit-dosage').value = dosage;
+      document.getElementById('edit-quantity').value = quantity;
+      document.getElementById('edit-batch').value = batch;
+      document.getElementById('edit-expiration').value = expiration ? new Date(expiration).toISOString().split('T')[0] : '';
+
+      if (!editModal) editModal = new bootstrap.Modal(document.getElementById('editModal'));
+      editModal.show();
+    }
+
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const updatedData = {
+        name: document.getElementById('edit-name').value,
+        dosage: document.getElementById('edit-dosage').value,
+        quantity: parseInt(document.getElementById('edit-quantity').value),
+        batchNumber: document.getElementById('edit-batch').value,
+        expirationDate: document.getElementById('edit-expiration').value
+      };
+
+      await fetch(`http://localhost:5500/api/medications/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+
+      editModal.hide();
+      loadInventory();
+    });
+
+    async function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Medication Inventory", 14, 15);
+      const res = await fetch('http://localhost:5500/api/medications/inventory');
+      const meds = await res.json();
+      const rows = meds.map(med => [
+        med.name,
+        med.dosage || 'N/A',
+        med.quantity,
+        med.batchNumber || 'N/A',
+        med.expirationDate ? new Date(med.expirationDate).toLocaleDateString() : 'N/A'
+      ]);
+      doc.autoTable({ head: [["Name", "Dosage", "Quantity", "Batch", "Expiration"]], body: rows, startY: 20 });
+      doc.save("medication_inventory.pdf");
+    }
+
+    window.onload = loadInventory;
+  </script>
+</body>
+</html>

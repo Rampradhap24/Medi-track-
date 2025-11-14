@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Medication Stock Management</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    body {
+      background: #eef2f7;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 30px 10px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: auto;
+    }
+    .card {
+      border-radius: 12px;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      font-weight: 600;
+      text-align: center;
+    }
+    .table thead th {
+      background-color: #495057;
+      color: #fff;
+    }
+    .search-box {
+      max-width: 300px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Back Button -->
+    <div class="mb-4">
+      <a href="second.html" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      </a>
+    </div>
+
+    <!-- Title -->
+    <h1><i class="bi bi-boxes"></i> Medication Stock Overview</h1>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="card p-4 bg-warning text-dark shadow-sm">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-box-seam fs-1 me-3"></i>
+            <div>
+              <h5 class="mb-1">Available</h5>
+              <h3 id="available-count">0</h3>
+              <div id="low-stock-warning" class="text-danger d-none">⚠️ Some medications are low in stock!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card p-4 bg-success text-white shadow-sm">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-bag-check-fill fs-1 me-3"></i>
+            <div>
+              <h5 class="mb-1">Sold</h5>
+              <h3 id="soldCount">0</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3" id="stockTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#allMeds" type="button" role="tab">
+          All Medications
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="low-tab" data-bs-toggle="tab" data-bs-target="#lowStock" type="button" role="tab">
+          Low Stock <span class="badge bg-danger" id="low-count">0</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- All Medications -->
+      <div class="tab-pane fade show active" id="allMeds" role="tabpanel">
+        <!-- Search Box -->
+        <input type="text" id="searchInput" class="form-control search-box" placeholder="Search by medicine name…" />
+
+        <div class="table-responsive shadow-sm">
+          <table class="table table-striped align-middle mb-5">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Available Qty</th>
+                <th>Sold Qty</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="medTable">
+              <tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Low Stock Medications -->
+      <div class="tab-pane fade" id="lowStock" role="tabpanel">
+        <div class="table-responsive shadow-sm">
+          <table class="table table-bordered table-hover align-middle mb-5">
+            <thead class="table-danger">
+              <tr>
+                <th>Name</th>
+                <th>Available Qty</th>
+              </tr>
+            </thead>
+            <tbody id="lowStockTable">
+              <tr><td colspan="2" class="text-center text-muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // ✅ Utility: check expiry
+    function isExpired(expiry) {
+      if (!expiry) return false;
+      if (expiry.$date) expiry = expiry.$date;
+      return new Date(expiry) < new Date();
+    }
+
+    // ✅ Fetch overview stats
+    async function fetchAvailableCount() {
+      try {
+        const response = await fetch("/api/medications/inventory");
+        if (!response.ok) throw new Error("Failed to fetch inventory");
+
+        let meds = await response.json();
+        meds = meds.filter((med) => !isExpired(med.expirationDate));
+
+        meds = meds.map((med) => {
+          const quantity = med.quantity || 0;
+          const sold = med.sold || 0;
+          const available = Math.max(quantity - sold, 0);
+          return { ...med, available };
+        });
+
+        const totalAvailable = meds.reduce((sum, med) => sum + med.available, 0);
+        const totalSold = meds.reduce((sum, med) => sum + (med.sold || 0), 0);
+
+        document.getElementById("available-count").textContent = totalAvailable;
+        document.getElementById("soldCount").textContent = totalSold;
+
+        const lowStockMeds = meds.filter((med) => med.available < 5);
+        document.getElementById("low-count").textContent = lowStockMeds.length;
+
+        const lowStockTable = document.getElementById("lowStockTable");
+        lowStockTable.innerHTML = "";
+        if (!lowStockMeds.length) {
+          lowStockTable.innerHTML =
+            '<tr><td colspan="2" class="text-center text-success">No low stock medications 🎉</td></tr>';
+        } else {
+          lowStockMeds.forEach((med) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${med.name}</td>
+              <td><span class="badge bg-danger">${med.available}</span></td>
+            `;
+            lowStockTable.appendChild(tr);
+          });
+        }
+
+        const warning = document.getElementById("low-stock-warning");
+        if (warning) {
+          warning.classList.toggle("d-none", lowStockMeds.length === 0);
+        }
+      } catch (err) {
+        console.error("Error fetching available count:", err);
+        document.getElementById("available-count").textContent = "0";
+        document.getElementById("soldCount").textContent = "0";
+      }
+    }
+
+    // ✅ Load all meds into table
+    async function loadMedications() {
+      try {
+        const response = await fetch("/api/medications/inventory");
+        if (!response.ok) throw new Error("Failed to fetch medications");
+
+        let meds = await response.json();
+        meds = meds.filter((med) => !isExpired(med.expirationDate));
+
+        const tbody = document.getElementById("medTable");
+        tbody.innerHTML = "";
+
+        if (!meds.length) {
+          tbody.innerHTML =
+            '<tr><td colspan="4" class="text-center text-muted">No medications found.</td></tr>';
+          return;
+        }
+
+        meds.forEach((med) => {
+          const available = Math.max((med.quantity || 0) - (med.sold || 0), 0);
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${med.name}</td>
+            <td>${available}</td>
+            <td>${med.sold || 0}</td>
+            <td>
+              <button class="btn btn-sm btn-primary me-2" onclick="editMed('${med._id}')">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deleteMed('${med._id}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>`;
+          tbody.appendChild(tr);
+        });
+
+        fetchAvailableCount();
+      } catch (err) {
+        document.getElementById("medTable").innerHTML =
+          '<tr><td colspan="4" class="text-center text-danger">Failed to load medications.</td></tr>';
+      }
+    }
+
+    // ✅ Edit Medication (correct stock logic)
+    async function editMed(id) {
+      try {
+        const res = await fetch(`/api/medications/${id}`);
+        const med = await res.json();
+
+        const quantity = med.quantity || 0;
+        const sold = med.sold || 0;
+        const available = Math.max(quantity - sold, 0);
+
+        const newSold = parseInt(prompt(`Enter sold quantity (Available: ${available}):`, sold));
+        if (isNaN(newSold) || newSold < 0 || newSold > quantity) {
+          alert("Invalid quantity entered.");
+          return;
+        }
+
+        await fetch(`/api/medications/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sold: newSold }) // ✅ only update sold
+        });
+
+        alert("Medication updated successfully.");
+        loadMedications();
+      } catch {
+        alert("Error updating medication.");
+      }
+    }
+
+    // ✅ Delete Medication
+    async function deleteMed(id) {
+      if (!confirm("Are you sure you want to delete this medication?")) return;
+      try {
+        await fetch(`/api/medications/${id}`, { method: "DELETE" });
+        alert("Medication deleted.");
+        loadMedications();
+      } catch {
+        alert("Delete failed.");
+      }
+    }
+
+    // ✅ Search
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      const q = e.target.value.toLowerCase();
+      document.querySelectorAll("#medTable tr").forEach((row) => {
+        const name = row.cells[0]?.textContent.toLowerCase() || "";
+        row.style.display = name.includes(q) ? "" : "none";
+      });
+    });
+
+    // Initial load
+    loadMedications();
+  </script>
+</body>
+</html>
