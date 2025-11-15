@@ -33,7 +33,11 @@ pipeline {
 
         stage('Run Docker Container') {
             steps {
-                sh 'docker run -d --name medi-track-container -p 5500:5500 medi-track-app'
+                sh '''
+                docker stop medi-track-container || true
+                docker rm medi-track-container || true
+                docker run -d --name medi-track-container -p 5500:5500 medi-track-app
+                '''
             }
         }
     }
